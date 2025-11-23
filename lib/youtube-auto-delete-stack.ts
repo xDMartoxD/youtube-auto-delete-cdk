@@ -1,10 +1,48 @@
 import * as cdk from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
+import * as ec2 from 'aws-cdk-lib/aws-ec2'
 
 export class YoutubeAutoDeleteStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props)
+
+        // STEP 2: Adding VPC
+        // Create a VPC with public and isolated private subnets
+        const vpc = new ec2.Vpc(this, 'YoutubeAutoDeleteVpc', {
+            maxAzs: 2,
+            natGateways: 0, // No NAT Gateway to save costs
+            subnetConfiguration: [
+                {
+                    cidrMask: 24,
+                    name: 'public',
+                    subnetType: ec2.SubnetType.PUBLIC,
+                },
+                {
+                    cidrMask: 24,
+                    name: 'private',
+                    subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+                },
+            ],
+        })
+
+        // Outputs so we can reference the VPC in later steps
+        new cdk.CfnOutput(this, 'VpcId', {
+            value: vpc.vpcId,
+            description: 'VPC ID',
+        })
+
+        new cdk.CfnOutput(this, 'PublicSubnets', {
+            value: vpc.publicSubnets.map((subnet) => subnet.subnetId).join(','),
+            description: 'Public subnet IDs (comma separated)',
+        })
+
+        new cdk.CfnOutput(this, 'PrivateSubnets', {
+            value: vpc.privateSubnets
+                .map((subnet) => subnet.subnetId)
+                .join(','),
+            description: 'Private isolated subnet IDs (comma separated)',
+        })
 
         // STEP 1: Adding DynamoDB table only
         // Table definition matches the Python code structure
