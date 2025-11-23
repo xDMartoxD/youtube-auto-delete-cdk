@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as ec2 from 'aws-cdk-lib/aws-ec2'
+import * as elasticache from 'aws-cdk-lib/aws-elasticache'
 
 export class YoutubeAutoDeleteStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -42,6 +43,66 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                 .map((subnet) => subnet.subnetId)
                 .join(','),
             description: 'Private isolated subnet IDs (comma separated)',
+        })
+
+        // STEP 3: Adding ElastiCache/Valkey
+        // Create a security group for ElastiCache
+        const cacheSecurityGroup = new ec2.SecurityGroup(
+            this,
+            'CacheSecurityGroup',
+            {
+                vpc,
+                description: 'Security group for YouTube auto-delete cache',
+                allowAllOutbound: true,
+            }
+        )
+
+        // Allow inbound connections on Redis/Valkey port (6379)
+        cacheSecurityGroup.addIngressRule(
+            ec2.Peer.ipv4(vpc.vpcCidrBlock),
+            ec2.Port.tcp(6379),
+            'Allow Redis/Valkey connections from within VPC'
+        )
+
+        // Create serverless Valkey ElastiCache cache
+        const privateSubnets =
+            vpc.privateSubnets.length > 0
+                ? vpc.privateSubnets
+                : vpc.publicSubnets
+
+        const serverlessCache = new elasticache.CfnServerlessCache(
+            this,
+            'YoutubeAutoDeleteCache',
+            {
+                engine: 'valkey',
+                serverlessCacheName: 'youtube-auto-delete-cache',
+                description:
+                    'Serverless Valkey cache for YouTube auto-delete functionality',
+                cacheUsageLimits: {
+                    dataStorage: {
+                        maximum: 5,
+                        unit: 'GB',
+                    },
+                    ecpuPerSecond: {
+                        maximum: 5000,
+                    },
+                },
+                majorEngineVersion: '8',
+                securityGroupIds: [cacheSecurityGroup.securityGroupId],
+                subnetIds: privateSubnets.map((subnet) => subnet.subnetId),
+            }
+        )
+
+        // Ensure VPC, security group, and all subnets are created before ElastiCache
+        serverlessCache.node.addDependency(vpc)
+        serverlessCache.node.addDependency(cacheSecurityGroup)
+        privateSubnets.forEach((subnet) => {
+            serverlessCache.node.addDependency(subnet)
+        })
+
+        new cdk.CfnOutput(this, 'ElastiCacheEndpoint', {
+            value: serverlessCache.attrEndpointAddress,
+            description: 'ElastiCache Serverless Endpoint',
         })
 
         // STEP 1: Adding DynamoDB table only
