@@ -122,12 +122,12 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Ensure security group is created before ElastiCache
         serverlessCache.node.addDependency(cacheSecurityGroup)
 
+        // STEP 3: Adding ECS Cluster and Service
         const cluster = new ecs.Cluster(this, 'YoutubeAutoDeleteCluster', {
             vpc,
-            // Container Insights can be enabled later via AWS Console or CLI if needed
         })
 
-        // Role que usa el contenedor (app) - Backend IAM Role
+        // IAM Role for the task (app permissions)
         const taskRole = new iam.Role(this, 'YoutubeAutoDeleteTaskRole', {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
             description:
@@ -135,17 +135,15 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         })
 
         // CloudWatch Logs - permisos específicos solo para el log group de esta app
-        // Más seguro que CloudWatchLogsFullAccess
         const logGroup = new logs.LogGroup(this, 'YoutubeAutoDeleteLogGroup', {
             retention: logs.RetentionDays.ONE_WEEK,
         })
         logGroup.grantWrite(taskRole)
 
-        // DynamoDB - permisos de lectura/escritura (graneados automáticamente)
+        // DynamoDB - permisos de lectura/escritura
         dynamoTable.grantReadWriteData(taskRole)
 
         // CloudWatch Metrics - para métricas personalizadas
-        // PutMetricData no requiere recursos específicos, pero limitamos el namespace
         taskRole.addToPrincipalPolicy(
             new iam.PolicyStatement({
                 effect: iam.Effect.ALLOW,
@@ -153,7 +151,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                     'cloudwatch:PutMetricData',
                     'cloudwatch:GetMetricStatistics',
                 ],
-                resources: ['*'], // PutMetricData requiere '*' pero puedes usar Condition para limitar namespace
+                resources: ['*'],
                 conditions: {
                     StringEquals: {
                         'cloudwatch:namespace': 'YoutubeAutoDelete',
@@ -161,31 +159,6 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                 },
             })
         )
-
-        // Nota: ElastiCache/Valkey NO requiere permisos IAM para conectarse
-        // El acceso se controla mediante Security Groups (ya configurado arriba)
-        // Solo necesitarías permisos IAM si quieres listar/describir caches desde la app,
-        // lo cual generalmente no es necesario
-
-        // S3 - Comentar/remover si no necesitas S3
-        // Si lo necesitas, especifica buckets específicos:
-        // taskRole.addToPrincipalPolicy(
-        //     new iam.PolicyStatement({
-        //         effect: iam.Effect.ALLOW,
-        //         actions: ['s3:GetObject', 's3:PutObject'],
-        //         resources: ['arn:aws:s3:::tu-bucket-especifico/*'],
-        //     })
-        // )
-
-        // Secrets Manager - Comentar/remover si no necesitas Secrets Manager
-        // Si lo necesitas, especifica secretos específicos:
-        // taskRole.addToPrincipalPolicy(
-        //     new iam.PolicyStatement({
-        //         effect: iam.Effect.ALLOW,
-        //         actions: ['secretsmanager:GetSecretValue'],
-        //         resources: ['arn:aws:secretsmanager:us-east-1:954573579519:secret:tu-secreto-*'],
-        //     })
-        // )
 
         // ExecutionRole: el que usa ECS para sacar token de ECR, logs, etc.
         const executionRole = new iam.Role(
@@ -201,9 +174,8 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                 'service-role/AmazonECSTaskExecutionRolePolicy'
             )
         )
-        // Si tienes imágenes en ECR privado, esto ya incluye permisos de ECR.
-        // Si quisieras algo extra de S3, podrías añadir más policies aquí.
 
+        // Task Definition
         const taskDefinition = new ecs.FargateTaskDefinition(
             this,
             'YoutubeAutoDeleteTaskDefinition',
@@ -215,12 +187,10 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             }
         )
 
-        // LogGroup ya creado arriba, reutilizamos la referencia
-
+        // Container
         const container = taskDefinition.addContainer(
             'YoutubeAutoDeleteContainer',
             {
-                // Ajusta esto a tu repo real de ECR
                 image: ecs.ContainerImage.fromRegistry(
                     '954573579519.dkr.ecr.us-east-1.amazonaws.com/main:latest'
                 ),
@@ -245,16 +215,14 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
 
                     return envVars
                 })(),
-                // Permitir que el contenedor use privilegios si es necesario
-                // privileged: false, // Por defecto es false, pero puedes cambiarlo si tu app lo requiere
             }
         )
 
         container.addPortMappings({
-            containerPort: 8080, // ajusta al puerto de tu app
+            containerPort: 80,
         })
 
-        // SG para el servicio ECS
+        // Security Group for ECS tasks
         const ecsSecurityGroup = new ec2.SecurityGroup(
             this,
             'YoutubeAutoDeleteEcsSecurityGroup',
@@ -273,14 +241,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             'Allow ECS tasks to connect to cache'
         )
 
-        // Ejemplo: permitir tráfico HTTP desde Internet (si tienes API pública)
-        ecsSecurityGroup.addIngressRule(
-            ec2.Peer.anyIpv4(),
-            ec2.Port.tcp(80),
-            'Allow HTTP access to containers'
-        )
-
-        // Aquí es donde estaba el problema de red:
+        // Fargate Service (without Load Balancer)
         const fargateService = new ecs.FargateService(
             this,
             'YoutubeAutoDeleteService',
@@ -290,18 +251,13 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                 desiredCount: 1,
                 securityGroups: [ecsSecurityGroup],
                 vpcSubnets: {
-                    subnets: vpc.publicSubnets, // Task en subredes PÚBLICAS
+                    subnets: vpc.publicSubnets,
                 },
                 assignPublicIp: true,
             }
         )
 
         // Outputs
-        new cdk.CfnOutput(this, 'TaskRoleArn', {
-            value: taskRole.roleArn,
-            description: 'IAM Role ARN for the backend task',
-        })
-
         new cdk.CfnOutput(this, 'DynamoTableName', {
             value: dynamoTable.tableName,
             description: 'DynamoDB Table Name',
@@ -310,6 +266,21 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'ElastiCacheEndpoint', {
             value: serverlessCache.attrEndpointAddress,
             description: 'ElastiCache Serverless Endpoint',
+        })
+
+        new cdk.CfnOutput(this, 'EcsClusterName', {
+            value: cluster.clusterName,
+            description: 'ECS Cluster Name',
+        })
+
+        new cdk.CfnOutput(this, 'ServiceName', {
+            value: fargateService.serviceName,
+            description: 'ECS Service Name',
+        })
+
+        new cdk.CfnOutput(this, 'TaskRoleArn', {
+            value: taskRole.roleArn,
+            description: 'IAM Role ARN for the backend task',
         })
     }
 }
