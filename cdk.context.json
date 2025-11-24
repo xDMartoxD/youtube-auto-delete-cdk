@@ -10,5 +10,55 @@
   "hosted-zone:account=954573579519:domainName=youtube-auto-delete.com:region=us-east-1": {
     "Id": "/hostedzone/Z0595886CSWS83B9S39P",
     "Name": "youtube-auto-delete.com."
+  },
+  "vpc-provider:account=954573579519:filter.isDefault=true:region=us-east-1:returnAsymmetricSubnets=true": {
+    "vpcId": "vpc-9a0191e7",
+    "vpcCidrBlock": "172.31.0.0/16",
+    "ownerAccountId": "954573579519",
+    "availabilityZones": [],
+    "subnetGroups": [
+      {
+        "name": "Public",
+        "type": "Public",
+        "subnets": [
+          {
+            "subnetId": "subnet-b64255fb",
+            "cidr": "172.31.16.0/20",
+            "availabilityZone": "us-east-1a",
+            "routeTableId": "rtb-95756beb"
+          },
+          {
+            "subnetId": "subnet-ce511191",
+            "cidr": "172.31.32.0/20",
+            "availabilityZone": "us-east-1b",
+            "routeTableId": "rtb-95756beb"
+          },
+          {
+            "subnetId": "subnet-fbbcfb9d",
+            "cidr": "172.31.0.0/20",
+            "availabilityZone": "us-east-1c",
+            "routeTableId": "rtb-95756beb"
+          },
+          {
+            "subnetId": "subnet-458ac864",
+            "cidr": "172.31.80.0/20",
+            "availabilityZone": "us-east-1d",
+            "routeTableId": "rtb-95756beb"
+          },
+          {
+            "subnetId": "subnet-858308b4",
+            "cidr": "172.31.48.0/20",
+            "availabilityZone": "us-east-1e",
+            "routeTableId": "rtb-95756beb"
+          },
+          {
+            "subnetId": "subnet-59e9d057",
+            "cidr": "172.31.64.0/20",
+            "availabilityZone": "us-east-1f",
+            "routeTableId": "rtb-95756beb"
+          }
+        ]
+      }
+    ]
   }
 }

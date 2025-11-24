@@ -8,10 +8,12 @@ export const prodEnv = {
     PYTHONPATH: '/app',
 
     // DynamoDB Configuration
+    // TABLE_NAME will be set dynamically from the DynamoDB table
     AWS_REGION: 'us-east-1',
+
     // DYNAMODB_ENDPOINT should be empty/None for production (uses AWS DynamoDB)
-    // AWS credentials are handled via IRSA (IAM Roles for Service Accounts) in EKS
-    // AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY not needed with IRSA
+    // AWS credentials are handled via IAM Roles (taskRole) in ECS
+    // AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY not needed with IAM Roles
 
     // Google OAuth Configuration
     GOOGLE_CLIENT_ID:
