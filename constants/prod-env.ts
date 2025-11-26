@@ -25,7 +25,7 @@ export const prodEnv = {
 
     // CORS Configuration
     CORS_ORIGINS:
-        'https://youtube-auto-delete.com,https://www.youtube-auto-delete.com',
+        'https://youtube-auto-delete.com,https://www.youtube-auto-delete.com,http://localhost:5173',
 
     // Redis/ElastiCache Configuration
     // REDIS_URL will be set dynamically from the cache endpoint

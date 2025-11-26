@@ -6,6 +6,7 @@ import * as iam from 'aws-cdk-lib/aws-iam'
 import * as logs from 'aws-cdk-lib/aws-logs'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as elasticache from 'aws-cdk-lib/aws-elasticache'
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2'
 import { prodEnv } from '../constants/prod-env'
 
 export class YoutubeAutoDeleteStack extends cdk.Stack {
@@ -180,8 +181,8 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             this,
             'YoutubeAutoDeleteTaskDefinition',
             {
-                cpu: 1024, // 1 vCPU
-                memoryLimitMiB: 3072, // 3 GB
+                cpu: 256, // 0.25 vCPU
+                memoryLimitMiB: 512, // 0.5 GB
                 taskRole,
                 executionRole,
             }
@@ -241,7 +242,76 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             'Allow ECS tasks to connect to cache'
         )
 
-        // Fargate Service (without Load Balancer)
+        // STEP 4: Adding Application Load Balancer
+        // Security Group for ALB
+        const albSecurityGroup = new ec2.SecurityGroup(
+            this,
+            'YoutubeAutoDeleteAlbSecurityGroup',
+            {
+                vpc,
+                description: 'Security group for Application Load Balancer',
+                allowAllOutbound: true,
+            }
+        )
+
+        // Allow HTTP from internet to ALB
+        albSecurityGroup.addIngressRule(
+            ec2.Peer.anyIpv4(),
+            ec2.Port.tcp(80),
+            'Allow HTTP traffic from internet'
+        )
+
+        // Allow ALB to connect to ECS tasks
+        ecsSecurityGroup.addIngressRule(
+            albSecurityGroup,
+            ec2.Port.tcp(80),
+            'Allow ALB to connect to ECS tasks'
+        )
+
+        // Application Load Balancer
+        const loadBalancer = new elbv2.ApplicationLoadBalancer(
+            this,
+            'YoutubeAutoDeleteAlb',
+            {
+                vpc,
+                internetFacing: true,
+                securityGroup: albSecurityGroup,
+                vpcSubnets: {
+                    subnets: vpc.publicSubnets,
+                },
+            }
+        )
+
+        // Target Group
+        const targetGroup = new elbv2.ApplicationTargetGroup(
+            this,
+            'YoutubeAutoDeleteTargetGroup',
+            {
+                vpc,
+                port: 80,
+                protocol: elbv2.ApplicationProtocol.HTTP,
+                targetType: elbv2.TargetType.IP,
+                healthCheck: {
+                    enabled: true,
+                    path: '/v1/health/ready',
+                    healthyHttpCodes: '200',
+                    interval: cdk.Duration.seconds(30),
+                    timeout: cdk.Duration.seconds(5),
+                    healthyThresholdCount: 2,
+                    unhealthyThresholdCount: 3,
+                },
+            }
+        )
+
+        // HTTP Listener (forward to target group)
+        loadBalancer.addListener('HttpListener', {
+            port: 80,
+            protocol: elbv2.ApplicationProtocol.HTTP,
+            defaultAction: elbv2.ListenerAction.forward([targetGroup]),
+        })
+
+        // Fargate Service (with Load Balancer)
+        // Tasks en subnets públicas con IP pública
         const fargateService = new ecs.FargateService(
             this,
             'YoutubeAutoDeleteService',
@@ -256,6 +326,9 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                 assignPublicIp: true,
             }
         )
+
+        // Attach ECS service to target group
+        fargateService.attachToApplicationTargetGroup(targetGroup)
 
         // Outputs
         new cdk.CfnOutput(this, 'DynamoTableName', {
@@ -281,6 +354,16 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'TaskRoleArn', {
             value: taskRole.roleArn,
             description: 'IAM Role ARN for the backend task',
+        })
+
+        new cdk.CfnOutput(this, 'LoadBalancerDns', {
+            value: loadBalancer.loadBalancerDnsName,
+            description: 'Application Load Balancer DNS Name',
+        })
+
+        new cdk.CfnOutput(this, 'ApiUrl', {
+            value: `http://${loadBalancer.loadBalancerDnsName}`,
+            description: 'API URL (HTTP - domain routing to be added later)',
         })
     }
 }
