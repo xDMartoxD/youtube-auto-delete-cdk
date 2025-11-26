@@ -7,6 +7,9 @@ import * as logs from 'aws-cdk-lib/aws-logs'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as elasticache from 'aws-cdk-lib/aws-elasticache'
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2'
+import * as route53 from 'aws-cdk-lib/aws-route53'
+import * as route53_targets from 'aws-cdk-lib/aws-route53-targets'
+import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import { prodEnv } from '../constants/prod-env'
 
 export class YoutubeAutoDeleteStack extends cdk.Stack {
@@ -303,10 +306,42 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             }
         )
 
-        // HTTP Listener (forward to target group)
+        // Look up hosted zone
+        const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
+            this,
+            'YoutubeAutoDeleteHostedZone',
+            {
+                hostedZoneId: 'Z0595886CSWS83B9S39P',
+                zoneName: 'youtube-auto-delete.com',
+            }
+        )
+
+        // ACM Certificate for api.youtube-auto-delete.com
+        const certificate = new acm.Certificate(
+            this,
+            'YoutubeAutoDeleteCertificate',
+            {
+                domainName: 'api.youtube-auto-delete.com',
+                validation: acm.CertificateValidation.fromDns(hostedZone),
+            }
+        )
+
+        // HTTP Listener (redirects to HTTPS)
         loadBalancer.addListener('HttpListener', {
             port: 80,
             protocol: elbv2.ApplicationProtocol.HTTP,
+            defaultAction: elbv2.ListenerAction.redirect({
+                protocol: 'HTTPS',
+                port: '443',
+                permanent: true,
+            }),
+        })
+
+        // HTTPS Listener
+        loadBalancer.addListener('HttpsListener', {
+            port: 443,
+            protocol: elbv2.ApplicationProtocol.HTTPS,
+            certificates: [certificate],
             defaultAction: elbv2.ListenerAction.forward([targetGroup]),
         })
 
@@ -329,6 +364,15 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
 
         // Attach ECS service to target group
         fargateService.attachToApplicationTargetGroup(targetGroup)
+
+        // Route53 A Record
+        new route53.ARecord(this, 'YoutubeAutoDeleteApiRecord', {
+            zone: hostedZone,
+            recordName: 'api.youtube-auto-delete.com',
+            target: route53.RecordTarget.fromAlias(
+                new route53_targets.LoadBalancerTarget(loadBalancer)
+            ),
+        })
 
         // Outputs
         new cdk.CfnOutput(this, 'DynamoTableName', {
@@ -362,8 +406,8 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         })
 
         new cdk.CfnOutput(this, 'ApiUrl', {
-            value: `http://${loadBalancer.loadBalancerDnsName}`,
-            description: 'API URL (HTTP - domain routing to be added later)',
+            value: `https://api.youtube-auto-delete.com`,
+            description: 'API URL',
         })
     }
 }
