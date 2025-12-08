@@ -1,0 +1,11 @@
+# robots.txt for YouTube Playlist Manager
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://youtube-auto-delete.com/sitemap.xml
+
+# Disallow admin or private areas if any
+# Disallow: /admin/
+
