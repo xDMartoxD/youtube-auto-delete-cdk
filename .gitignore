@@ -6,3 +6,6 @@ node_modules
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# Frontend build, produced by `yarn build:cdk` in ../client before deploying
+client/
