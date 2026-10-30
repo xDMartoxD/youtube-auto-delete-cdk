@@ -1,6 +1,10 @@
 // Production Environment Variables
 // Generated from kubernetes/configmap.yaml
 
+// Secret values (GOOGLE_CLIENT_SECRET, JWT_SECRET) live in AWS Secrets Manager
+// under this name as JSON keys and are injected into the container by ECS.
+export const BACKEND_SECRET_NAME = 'youtube-auto-delete/backend'
+
 export const prodEnv = {
     // App Configuration
     APP_ENV: 'production',
@@ -18,10 +22,6 @@ export const prodEnv = {
     // Google OAuth Configuration
     GOOGLE_CLIENT_ID:
         '1045602413659-ns6cq27oi7ro1vj9pd9m8biq7q59j259.apps.googleusercontent.com',
-    GOOGLE_CLIENT_SECRET: '***REMOVED***',
-
-    // JWT Configuration
-    JWT_SECRET: '***REMOVED***',
 
     // CORS Configuration
     CORS_ORIGINS:

@@ -10,7 +10,8 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2'
 import * as route53 from 'aws-cdk-lib/aws-route53'
 import * as route53_targets from 'aws-cdk-lib/aws-route53-targets'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
-import { prodEnv } from '../constants/prod-env'
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+import { prodEnv, BACKEND_SECRET_NAME } from '../constants/prod-env'
 
 export class YoutubeAutoDeleteStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -191,6 +192,13 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             }
         )
 
+        // Secrets (created outside CDK so values never live in the repo)
+        const backendSecret = secretsmanager.Secret.fromSecretNameV2(
+            this,
+            'YoutubeAutoDeleteBackendSecret',
+            BACKEND_SECRET_NAME
+        )
+
         // Container
         const container = taskDefinition.addContainer(
             'YoutubeAutoDeleteContainer',
@@ -219,6 +227,17 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
 
                     return envVars
                 })(),
+                // Injected at task start; CDK grants the execution role read access
+                secrets: {
+                    GOOGLE_CLIENT_SECRET: ecs.Secret.fromSecretsManager(
+                        backendSecret,
+                        'GOOGLE_CLIENT_SECRET'
+                    ),
+                    JWT_SECRET: ecs.Secret.fromSecretsManager(
+                        backendSecret,
+                        'JWT_SECRET'
+                    ),
+                },
             }
         )
 
