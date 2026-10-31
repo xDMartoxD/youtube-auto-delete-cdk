@@ -10,6 +10,7 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as iam from 'aws-cdk-lib/aws-iam'
 import { join } from 'path'
 import { writeFileSync, mkdirSync } from 'fs'
+import { DOMAIN_NAME, HOSTED_ZONE_ID, WWW_DOMAIN_NAME } from '../constants/domain'
 
 export class FrontendStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -20,8 +21,8 @@ export class FrontendStack extends cdk.Stack {
             this,
             'YoutubeAutoDeleteHostedZone',
             {
-                hostedZoneId: 'Z0595886CSWS83B9S39P',
-                zoneName: 'youtube-auto-delete.com',
+                hostedZoneId: HOSTED_ZONE_ID,
+                zoneName: DOMAIN_NAME,
             }
         )
 
@@ -30,15 +31,15 @@ export class FrontendStack extends cdk.Stack {
             this,
             'YoutubeAutoDeleteCertificate',
             {
-                domainName: 'youtube-auto-delete.com',
-                subjectAlternativeNames: ['www.youtube-auto-delete.com'],
+                domainName: DOMAIN_NAME,
+                subjectAlternativeNames: [WWW_DOMAIN_NAME],
                 validation: acm.CertificateValidation.fromDns(hostedZone),
             }
         )
 
         // S3 Bucket for static files (NOT configured as website - CloudFront serves via OAC)
+        // Name is generated: CloudFront serves the site, so it needn't match the domain
         const websiteBucket = new s3.Bucket(this, 'YoutubeAutoDeleteBucket', {
-            bucketName: 'youtube-auto-delete.com',
             // NO website configuration - CloudFront handles routing via errorResponses
             publicReadAccess: false, // CloudFront will access via OAC
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -65,8 +66,8 @@ export class FrontendStack extends cdk.Stack {
                     cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
                 },
                 domainNames: [
-                    'youtube-auto-delete.com',
-                    'www.youtube-auto-delete.com',
+                    DOMAIN_NAME,
+                    WWW_DOMAIN_NAME,
                 ],
                 certificate: certificate,
                 defaultRootObject: 'index.html',
@@ -135,7 +136,7 @@ export class FrontendStack extends cdk.Stack {
         })
 
         // Route53 A Record for root domain
-        // Apex: youtube-auto-delete.com
+        // Apex domain
         new route53.ARecord(this, 'FrontendRootRecord', {
             zone: hostedZone,
             // sin recordName => apex del hosted zone
@@ -144,7 +145,7 @@ export class FrontendStack extends cdk.Stack {
             ),
         })
 
-        // www.youtube-auto-delete.com
+        // www subdomain
         new route53.ARecord(this, 'FrontendWwwRecord', {
             zone: hostedZone,
             recordName: 'www', // solo el subdominio, no el dominio completo
@@ -165,12 +166,12 @@ export class FrontendStack extends cdk.Stack {
         })
 
         new cdk.CfnOutput(this, 'FrontendDomain', {
-            value: 'https://youtube-auto-delete.com',
+            value: `https://${DOMAIN_NAME}`,
             description: 'Frontend Domain',
         })
 
         new cdk.CfnOutput(this, 'FrontendWwwDomain', {
-            value: 'https://www.youtube-auto-delete.com',
+            value: `https://${WWW_DOMAIN_NAME}`,
             description: 'Frontend WWW Domain',
         })
     }

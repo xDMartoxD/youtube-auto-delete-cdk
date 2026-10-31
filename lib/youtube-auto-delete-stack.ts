@@ -12,6 +12,11 @@ import * as route53_targets from 'aws-cdk-lib/aws-route53-targets'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import { prodEnv, BACKEND_SECRET_NAME } from '../constants/prod-env'
+import {
+    API_DOMAIN_NAME,
+    DOMAIN_NAME,
+    HOSTED_ZONE_ID,
+} from '../constants/domain'
 
 export class YoutubeAutoDeleteStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -330,17 +335,17 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             this,
             'YoutubeAutoDeleteHostedZone',
             {
-                hostedZoneId: 'Z0595886CSWS83B9S39P',
-                zoneName: 'youtube-auto-delete.com',
+                hostedZoneId: HOSTED_ZONE_ID,
+                zoneName: DOMAIN_NAME,
             }
         )
 
-        // ACM Certificate for api.youtube-auto-delete.com
+        // ACM Certificate for the API subdomain
         const certificate = new acm.Certificate(
             this,
             'YoutubeAutoDeleteCertificate',
             {
-                domainName: 'api.youtube-auto-delete.com',
+                domainName: API_DOMAIN_NAME,
                 validation: acm.CertificateValidation.fromDns(hostedZone),
             }
         )
@@ -387,7 +392,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Route53 A Record
         new route53.ARecord(this, 'YoutubeAutoDeleteApiRecord', {
             zone: hostedZone,
-            recordName: 'api.youtube-auto-delete.com',
+            recordName: API_DOMAIN_NAME,
             target: route53.RecordTarget.fromAlias(
                 new route53_targets.LoadBalancerTarget(loadBalancer)
             ),
@@ -425,7 +430,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         })
 
         new cdk.CfnOutput(this, 'ApiUrl', {
-            value: `https://api.youtube-auto-delete.com`,
+            value: `https://${API_DOMAIN_NAME}`,
             description: 'API URL',
         })
     }
