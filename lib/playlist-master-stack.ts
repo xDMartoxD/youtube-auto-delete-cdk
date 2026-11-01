@@ -18,7 +18,7 @@ import {
     HOSTED_ZONE_ID,
 } from '../constants/domain'
 
-export class YoutubeAutoDeleteStack extends cdk.Stack {
+export class PlaylistMasterStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props)
 
@@ -28,8 +28,8 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         })
 
         // STEP 1: Adding DynamoDB table
-        const dynamoTable = new dynamodb.Table(this, 'YoutubeAutoDeleteDb', {
-            tableName: 'youtube-auto-delete-db',
+        const dynamoTable = new dynamodb.Table(this, 'PlaylistMasterDb', {
+            tableName: 'playlistmaster-prod',
             partitionKey: {
                 name: 'PK',
                 type: dynamodb.AttributeType.STRING,
@@ -77,7 +77,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
             'CacheSecurityGroup',
             {
                 vpc,
-                description: 'Security group for YouTube auto-delete cache',
+                description: 'Security group for the PlaylistMaster cache',
                 allowAllOutbound: true,
             }
         )
@@ -108,12 +108,12 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
 
         const serverlessCache = new elasticache.CfnServerlessCache(
             this,
-            'YoutubeAutoDeleteCache',
+            'PlaylistMasterCache',
             {
                 engine: 'valkey',
-                serverlessCacheName: 'youtube-auto-delete-cache',
+                serverlessCacheName: 'playlistmaster-cache',
                 description:
-                    'Serverless Valkey cache for YouTube auto-delete functionality',
+                    'Serverless Valkey cache for the PlaylistMaster API',
                 cacheUsageLimits: {
                     dataStorage: {
                         maximum: 5,
@@ -133,19 +133,19 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         serverlessCache.node.addDependency(cacheSecurityGroup)
 
         // STEP 3: Adding ECS Cluster and Service
-        const cluster = new ecs.Cluster(this, 'YoutubeAutoDeleteCluster', {
+        const cluster = new ecs.Cluster(this, 'PlaylistMasterCluster', {
             vpc,
         })
 
         // IAM Role for the task (app permissions)
-        const taskRole = new iam.Role(this, 'YoutubeAutoDeleteTaskRole', {
+        const taskRole = new iam.Role(this, 'PlaylistMasterTaskRole', {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
             description:
-                'IAM role for YouTube Auto Delete backend to access AWS services',
+                'IAM role for the PlaylistMaster backend to access AWS services',
         })
 
         // CloudWatch Logs - permisos específicos solo para el log group de esta app
-        const logGroup = new logs.LogGroup(this, 'YoutubeAutoDeleteLogGroup', {
+        const logGroup = new logs.LogGroup(this, 'PlaylistMasterLogGroup', {
             retention: logs.RetentionDays.ONE_WEEK,
         })
         logGroup.grantWrite(taskRole)
@@ -164,7 +164,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
                 resources: ['*'],
                 conditions: {
                     StringEquals: {
-                        'cloudwatch:namespace': 'YoutubeAutoDelete',
+                        'cloudwatch:namespace': 'PlaylistMaster',
                     },
                 },
             })
@@ -173,7 +173,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // ExecutionRole: el que usa ECS para sacar token de ECR, logs, etc.
         const executionRole = new iam.Role(
             this,
-            'YoutubeAutoDeleteExecutionRole',
+            'PlaylistMasterExecutionRole',
             {
                 assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
             }
@@ -188,7 +188,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Task Definition
         const taskDefinition = new ecs.FargateTaskDefinition(
             this,
-            'YoutubeAutoDeleteTaskDefinition',
+            'PlaylistMasterTaskDefinition',
             {
                 cpu: 256, // 0.25 vCPU
                 memoryLimitMiB: 512, // 0.5 GB
@@ -200,20 +200,20 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Secrets (created outside CDK so values never live in the repo)
         const backendSecret = secretsmanager.Secret.fromSecretNameV2(
             this,
-            'YoutubeAutoDeleteBackendSecret',
+            'PlaylistMasterBackendSecret',
             BACKEND_SECRET_NAME
         )
 
         // Container
         const container = taskDefinition.addContainer(
-            'YoutubeAutoDeleteContainer',
+            'PlaylistMasterContainer',
             {
                 image: ecs.ContainerImage.fromRegistry(
                     '954573579519.dkr.ecr.us-east-1.amazonaws.com/main:latest'
                 ),
                 logging: ecs.LogDriver.awsLogs({
                     logGroup,
-                    streamPrefix: 'youtube-auto-delete',
+                    streamPrefix: 'playlistmaster',
                 }),
                 environment: (() => {
                     // Get environment variables from constants
@@ -253,11 +253,11 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Security Group for ECS tasks
         const ecsSecurityGroup = new ec2.SecurityGroup(
             this,
-            'YoutubeAutoDeleteEcsSecurityGroup',
+            'PlaylistMasterEcsSecurityGroup',
             {
                 vpc,
                 description:
-                    'Security group for Youtube auto delete ECS service',
+                    'Security group for the PlaylistMaster ECS service',
                 allowAllOutbound: true,
             }
         )
@@ -273,7 +273,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Security Group for ALB
         const albSecurityGroup = new ec2.SecurityGroup(
             this,
-            'YoutubeAutoDeleteAlbSecurityGroup',
+            'PlaylistMasterAlbSecurityGroup',
             {
                 vpc,
                 description: 'Security group for Application Load Balancer',
@@ -298,7 +298,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Application Load Balancer
         const loadBalancer = new elbv2.ApplicationLoadBalancer(
             this,
-            'YoutubeAutoDeleteAlb',
+            'PlaylistMasterAlb',
             {
                 vpc,
                 internetFacing: true,
@@ -312,7 +312,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Target Group
         const targetGroup = new elbv2.ApplicationTargetGroup(
             this,
-            'YoutubeAutoDeleteTargetGroup',
+            'PlaylistMasterTargetGroup',
             {
                 vpc,
                 port: 80,
@@ -333,7 +333,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Look up hosted zone
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
             this,
-            'YoutubeAutoDeleteHostedZone',
+            'PlaylistMasterHostedZone',
             {
                 hostedZoneId: HOSTED_ZONE_ID,
                 zoneName: DOMAIN_NAME,
@@ -343,7 +343,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // ACM Certificate for the API subdomain
         const certificate = new acm.Certificate(
             this,
-            'YoutubeAutoDeleteCertificate',
+            'PlaylistMasterCertificate',
             {
                 domainName: API_DOMAIN_NAME,
                 validation: acm.CertificateValidation.fromDns(hostedZone),
@@ -373,7 +373,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         // Tasks en subnets públicas con IP pública
         const fargateService = new ecs.FargateService(
             this,
-            'YoutubeAutoDeleteService',
+            'PlaylistMasterService',
             {
                 cluster,
                 taskDefinition,
@@ -390,7 +390,7 @@ export class YoutubeAutoDeleteStack extends cdk.Stack {
         fargateService.attachToApplicationTargetGroup(targetGroup)
 
         // Route53 A Record
-        new route53.ARecord(this, 'YoutubeAutoDeleteApiRecord', {
+        new route53.ARecord(this, 'PlaylistMasterApiRecord', {
             zone: hostedZone,
             recordName: API_DOMAIN_NAME,
             target: route53.RecordTarget.fromAlias(

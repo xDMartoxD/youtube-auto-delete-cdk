@@ -12,14 +12,14 @@ import { join } from 'path'
 import { writeFileSync, mkdirSync } from 'fs'
 import { DOMAIN_NAME, HOSTED_ZONE_ID, WWW_DOMAIN_NAME } from '../constants/domain'
 
-export class FrontendStack extends cdk.Stack {
+export class PlaylistMasterFrontendStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props)
 
         // Look up hosted zone
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
             this,
-            'YoutubeAutoDeleteHostedZone',
+            'PlaylistMasterHostedZone',
             {
                 hostedZoneId: HOSTED_ZONE_ID,
                 zoneName: DOMAIN_NAME,
@@ -29,7 +29,7 @@ export class FrontendStack extends cdk.Stack {
         // ACM Certificate for both domains (must be in us-east-1 for CloudFront)
         const certificate = new acm.Certificate(
             this,
-            'YoutubeAutoDeleteCertificate',
+            'PlaylistMasterCertificate',
             {
                 domainName: DOMAIN_NAME,
                 subjectAlternativeNames: [WWW_DOMAIN_NAME],
@@ -39,7 +39,7 @@ export class FrontendStack extends cdk.Stack {
 
         // S3 Bucket for static files (NOT configured as website - CloudFront serves via OAC)
         // Name is generated: CloudFront serves the site, so it needn't match the domain
-        const websiteBucket = new s3.Bucket(this, 'YoutubeAutoDeleteBucket', {
+        const websiteBucket = new s3.Bucket(this, 'PlaylistMasterBucket', {
             // NO website configuration - CloudFront handles routing via errorResponses
             publicReadAccess: false, // CloudFront will access via OAC
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -50,7 +50,7 @@ export class FrontendStack extends cdk.Stack {
         // CloudFront Distribution
         const distribution = new cloudfront.Distribution(
             this,
-            'YoutubeAutoDeleteDistribution',
+            'PlaylistMasterDistribution',
             {
                 defaultBehavior: {
                     origin: cloudfront_origins.S3BucketOrigin.withOriginAccessControl(
@@ -109,13 +109,13 @@ export class FrontendStack extends cdk.Stack {
         // This ensures CDK detects changes even if source files are identical
         const versionFile = join(
             __dirname,
-            '../client/youtube-auto-delete/.version'
+            '../client/playlistmaster/.version'
         )
         try {
             writeFileSync(versionFile, new Date().toISOString())
         } catch (error) {
             // If directory doesn't exist, create it
-            const versionDir = join(__dirname, '../client/youtube-auto-delete')
+            const versionDir = join(__dirname, '../client/playlistmaster')
             mkdirSync(versionDir, { recursive: true })
             writeFileSync(versionFile, new Date().toISOString())
         }
@@ -124,7 +124,7 @@ export class FrontendStack extends cdk.Stack {
         new s3deploy.BucketDeployment(this, 'FrontendDeployment', {
             sources: [
                 s3deploy.Source.asset(
-                    join(__dirname, '../client/youtube-auto-delete')
+                    join(__dirname, '../client/playlistmaster')
                 ),
             ],
             destinationBucket: websiteBucket,

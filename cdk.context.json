@@ -7,10 +7,6 @@
     "us-east-1e",
     "us-east-1f"
   ],
-  "hosted-zone:account=954573579519:domainName=youtube-auto-delete.com:region=us-east-1": {
-    "Id": "/hostedzone/Z0595886CSWS83B9S39P",
-    "Name": "youtube-auto-delete.com."
-  },
   "vpc-provider:account=954573579519:filter.isDefault=true:region=us-east-1:returnAsymmetricSubnets=true": {
     "vpcId": "vpc-9a0191e7",
     "vpcCidrBlock": "172.31.0.0/16",

@@ -3,7 +3,7 @@
 
 // Secret values (GOOGLE_CLIENT_SECRET, JWT_SECRET) live in AWS Secrets Manager
 // under this name as JSON keys and are injected into the container by ECS.
-export const BACKEND_SECRET_NAME = 'youtube-auto-delete/backend'
+export const BACKEND_SECRET_NAME = 'playlistmaster/backend'
 
 export const prodEnv = {
     // App Configuration
