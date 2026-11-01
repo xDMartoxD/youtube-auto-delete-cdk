@@ -1,7 +1,7 @@
 // Production Environment Variables
 // Generated from kubernetes/configmap.yaml
 
-// Secret values (GOOGLE_CLIENT_SECRET, JWT_SECRET) live in AWS Secrets Manager
+// Secret values (GOOGLE_CLIENT_SECRET, JWT_SECRET, SPOTIFY_CLIENT_SECRET) live in AWS Secrets Manager
 // under this name as JSON keys and are injected into the container by ECS.
 export const BACKEND_SECRET_NAME = 'playlistmaster/backend'
 
@@ -22,6 +22,11 @@ export const prodEnv = {
     // Google OAuth Configuration
     GOOGLE_CLIENT_ID:
         '1045602413659-ns6cq27oi7ro1vj9pd9m8biq7q59j259.apps.googleusercontent.com',
+
+    // Spotify OAuth (the client ID is public; the secret is in Secrets Manager)
+    SPOTIFY_CLIENT_ID: 'e3b4cb53bfb24645a010803363954067',
+    SPOTIFY_REDIRECT_URI: 'https://api.playlistsmaster.com/v1/providers/spotify/callback',
+    FRONTEND_URL: 'https://playlistsmaster.com',
 
     // CORS Configuration
     CORS_ORIGINS:

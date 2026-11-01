@@ -242,6 +242,10 @@ export class PlaylistMasterStack extends cdk.Stack {
                         backendSecret,
                         'JWT_SECRET'
                     ),
+                    SPOTIFY_CLIENT_SECRET: ecs.Secret.fromSecretsManager(
+                        backendSecret,
+                        'SPOTIFY_CLIENT_SECRET'
+                    ),
                 },
             }
         )
